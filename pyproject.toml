@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qa-logs"
+version = "1.4.0"
+description = "QA Log Investigation Agent — /qa-logs skill for Claude Code (Grafana/VictoriaLogs)"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+  "requests>=2.31",
+  "python-dotenv>=1.0",
+  "PyYAML>=6.0",
+  "urllib3>=2.0",
+]
+
+[project.scripts]
+workflow = "cli.agent:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cli*", "modules*", "shared*"]
+exclude = ["tasks*", "config*", ".claude*"]

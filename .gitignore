@@ -1,0 +1,24 @@
+# Config — per-user credentials, never commit
+config/*
+!config/example/
+
+# Task folders
+tasks/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude personal files
+memory/
+.cache/
+.rtk/
