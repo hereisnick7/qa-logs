@@ -1,9 +1,9 @@
 # QA Logs Agent — Domain Knowledge Base
 
-Persistent knowledge for `qa-logs-agent`. Read at the start of every investigation.
-Manually curated — `qa-logs-agent` is a log bloodhound, not a curator: it reads
-this file but never proposes changes to it (no Seed Mode). Update it by hand
-when an investigation surfaces something durable worth keeping.
+Persistent knowledge for `qa-logs-agent` and, if you use it, `qa-database-agent`.
+Read at the start of every investigation. Manually curated — neither agent is a
+curator: they read this file but never propose changes to it (no Seed Mode).
+Update it by hand when an investigation surfaces something durable worth keeping.
 
 ---
 
@@ -59,6 +59,45 @@ type codes, status enums) that aren't self-explanatory from the log line alone.
 | id | Name | Meaning |
 |---|---|---|
 | `<id>` | `<human name>` | `<what triggers it>` |
+
+---
+
+## Database
+
+Optional — only relevant if you also run `qa-database-agent` (read-only Postgres
+cross-check, second-line escalation from `qa-logs-agent` when logs alone can't
+resolve something a current DB snapshot could). CLI:
+
+```bash
+workflow db-info                                              # connectivity + version
+workflow db-tables [--schema=public]                          # explore schema
+workflow db-describe <table> [--schema=public]                # columns for a table
+workflow db-query "<SELECT ...>" [--limit=200]                 # the actual check
+```
+
+**A DB row is CURRENT state, not history** — unless a table is explicitly an
+audit/history table with its own per-row timestamp, a query only tells you
+"what is true right now", not "what was true at the incident time". Cite it
+accordingly.
+
+**Check your timestamp storage convention before trusting a comparison.** Some
+schemas store business timestamps as epoch integers (seconds since epoch)
+rather than a native timestamp type — if yours does, cast before citing:
+`to_timestamp(<col>) AT TIME ZONE 'UTC'`. Verify empirically once per table
+family, don't assume.
+
+**Check your money-column scaling convention before citing an amount.** Some
+schemas store monetary amounts in minor units (e.g. cents, so ÷100 to get the
+real-world value) rather than face value — citing the raw integer as-is can
+overstate a value 100× and manufacture a false match against a user-reported
+figure. Verify empirically (compare a raw value against what the admin
+panel/user actually sees for the same row) before trusting the scale for a
+table you haven't checked yet — don't assume every numeric money-shaped column
+uses the same convention.
+
+Document your own schema's tables/columns/enums here once confirmed, the same
+way the `Known Services` / `ID Glossary` sections above document services and
+rule IDs — this section intentionally ships empty as a template.
 
 ---
 

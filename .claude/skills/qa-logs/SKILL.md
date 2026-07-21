@@ -5,8 +5,10 @@ description: >
   engineers alike: takes a symptom description (user/entity id, symptom,
   approximate time) and/or a Jira key, reconstructs the causal chain across
   services step by step, and ends with a conclusion plus either a concrete
-  suggestion or a "dig here" pointer for the backend owner. Report only —
-  filing a Jira bug is a separate explicit step.
+  suggestion or a "dig here" pointer for the backend owner. When the logs
+  alone can't resolve something a current DB snapshot could, offers to hand
+  off to `qa-database-agent` (read-only Postgres, second-line escalation).
+  Report only — filing a Jira bug is a separate explicit step.
   Use when: "разбери логи по юзеру X", "почему дублируется Y", "что сломалось
   в логах", "qa-logs DEV-XXXX", "найди причину по логам".
 ---
@@ -89,22 +91,57 @@ and re-launch with the literal Step list above (not a paraphrase — a
 paraphrased step list is what tends to trigger the drift).
 Missing/non-compliant → "⚠️ Отчёт не в нужном формате: {что не так}. Повторить?"
 
-### 5. After the report — offer to file a bug
+### 5. Check the meta footer — offer escalation to qa-database
+
+Read `<!-- qa-logs-meta -->` → `escalate_db:`. If `yes`, the report's
+`## ❓ Вопросы` → `→ **Эскалация:**` line names a specific question the
+agent couldn't resolve from logs alone but flagged as checkable via a
+current-DB-state snapshot. Ask the user:
+
+> "Логов недостаточно, чтобы закрыть вопрос: «{вопрос из Эскалация}».
+> Подключить `qa-database` для сверки текущего состояния в БД? (да / нет)"
+
+If yes, launch `qa-database-agent` (directly, or via `/qa-database` if that
+skill is invoked instead — same effect) with the handoff context:
+
+```python
+Agent(subagent_type="qa-database-agent", prompt="""
+Handoff from a qa-logs-agent investigation.
+
+Entity: {entity from qa-logs-meta}
+Question to confirm/refute (current DB state): {the Эскалация question}
+
+Read config/qa-logs-context.md → ## Database first, then run your normal
+Step 0-4 workflow to answer this specific question.
+""")
+```
+
+Relay `qa-database-agent`'s report to the user as a follow-up to the
+original investigation — don't merge the two reports into one, they answer
+different questions (why it happened vs. what's true right now).
+
+If `escalate_db: no` (or absent), skip this step entirely.
+
+### 6. After the report(s) — offer to file a bug
 
 > "Завести баг в Jira по этому расследованию? (да / нет)"
 
-If yes, hand the investigation report (root cause, timeline evidence, entity
-id) to whatever ticket-creation flow your orchestrator has — this agent never
-files tickets itself. If the investigation started from an existing Jira key,
-offer to comment on that ticket instead of creating a new one.
+If yes, hand the investigation report(s) (root cause, timeline evidence,
+entity id, DB cross-check if one ran) to whatever ticket-creation flow your
+orchestrator has — this agent never files tickets itself. If the
+investigation started from an existing Jira key, offer to comment on that
+ticket instead of creating a new one.
 
 ## Rules
 
 - Never launch the agent without either a Jira key or a usable free-text symptom
 - Never auto-file a Jira bug — always ask first
+- Never launch `qa-database-agent` without asking first, even when
+  `escalate_db: yes` — the offer in step 5 is not an auto-escalation
 - No Seed Mode — this agent doesn't propose knowledge-base changes; keeping
   `config/qa-logs-context.md` current is a manual/orchestrator task
-- One `/qa-logs` call = one investigation
+- One `/qa-logs` call = one investigation (plus, optionally, one
+  `qa-database-agent` follow-up if escalation was offered and accepted)
 
 ## Output Contract
 
@@ -112,7 +149,7 @@ The agent produces the complete report. Relay it directly to the user.
 
 Required (by core text, see step 4): "Ход расследования" merged causal chain,
 "ИТОГ", "Масштаб", "Рекомендации".
-Optional: `## ❓ Вопросы`
+Optional: `## ❓ Вопросы`, `escalate_db: yes|no` in the meta footer.
 
 ## Fail-fast
 
