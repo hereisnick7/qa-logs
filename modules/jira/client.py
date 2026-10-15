@@ -652,7 +652,7 @@ class JiraClient:
         Returns a list of dicts: id ("path/to/repo!N"), status, url, repository_name,
         source_branch, target_branch, last_update. Empty list = no linked MR, not an error.
 
-        Confirmed live 2026-07-03 against DEV-2842. Two things the standard Jira Cloud
+        Confirmed live against a real issue. Two things the standard Jira Cloud
         dev-status docs don't make obvious:
         - The `applicationType` id is NOT the literal string "GitLab" — it's whatever
           this instance's connect app is registered as (here:

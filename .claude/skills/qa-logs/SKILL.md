@@ -22,8 +22,8 @@ against Grafana/VictoriaLogs.
 
 ```
 /qa-logs "юзер 42, дублируются записи о проверке, с 6 утра"      # free text
-/qa-logs DEV-3102                                                 # Jira key — agent reads the ticket
-/qa-logs DEV-3102 "уточнение: это только для одной геозоны"       # Jira key + extra context
+/qa-logs DEV-XXXX                                                 # Jira key — agent reads the ticket
+/qa-logs DEV-XXXX "уточнение: это только для одной геозоны"       # Jira key + extra context
 ```
 
 ## Algorithm
@@ -36,14 +36,29 @@ against Grafana/VictoriaLogs.
 - Neither a Jira key nor any text → ask: "Что искать? Опиши: юзер/сущность,
   симптом, примерное время — или дай ключ задачи."
 
-### 2. Check Grafana is configured
+### 2. Pick the environment, then check Grafana is configured
+
+Each environment is a separate Grafana instance behind its own account
+(`--account=<name>`; which one the bare keys are is in
+`config/qa-logs-context.md` → Environments). Decide from the symptom
+**before** launching the agent — a live customer's id/reference, an "on prod"
+mention, or a Jira ticket describing a customer-facing incident means
+production; a test-stand run means the test instance. Ambiguous → ask the
+user; do not guess, because the wrong account answers "нет логов" instead of
+failing.
 
 ```bash
-workflow grafana-info
+workflow grafana-info                       # default (bare keys) account
+workflow grafana-info --account=<name>      # a named account, e.g. prod
 ```
 
 Failure (missing token / unreachable) → tell the user, point at
-`config/grafana/.env` (`GRAFANA_URL` / `GRAFANA_TOKEN`), do not launch the agent.
+`config/grafana/.env` (`GRAFANA_URL` / `GRAFANA_TOKEN`, or
+`GRAFANA__<ACCOUNT>__URL` / `__TOKEN` for a named account), do not launch the
+agent.
+
+State the chosen account in the agent prompt (step 3) so every query it runs
+carries the same flag, and repeat it in your own status update to the user.
 
 ### 3. Launch qa-logs-agent
 
@@ -55,6 +70,11 @@ Investigate via Grafana/VictoriaLogs logs.
 and its comments (workflow jira-comments {KEY}) to extract the entity id, symptom,
 and approximate time. Extra context from the user: {free text or 'none'}."}
 {Free-text mode: "Free-text report from the user: {free text}."}
+
+Grafana account for this investigation: {account chosen in step 2}. Pass
+{--account=<name> | nothing, if it's the default account} on EVERY grafana-hits /
+grafana-logs call, and name the environment in the report. Never query another
+account for the same chain.
 
 Start by reading: config/qa-logs-context.md
 
@@ -111,7 +131,7 @@ Handoff from a qa-logs-agent investigation.
 Entity: {entity from qa-logs-meta}
 Question to confirm/refute (current DB state): {the Эскалация question}
 
-Read config/qa-logs-context.md → ## Database first, then run your normal
+Read config/qa-database-context.md → ## Database first, then run your normal
 Step 0-4 workflow to answer this specific question.
 """)
 ```
@@ -126,11 +146,12 @@ If `escalate_db: no` (or absent), skip this step entirely.
 
 > "Завести баг в Jira по этому расследованию? (да / нет)"
 
-If yes, hand the investigation report(s) (root cause, timeline evidence,
-entity id, DB cross-check if one ran) to whatever ticket-creation flow your
-orchestrator has — this agent never files tickets itself. If the
-investigation started from an existing Jira key, offer to comment on that
-ticket instead of creating a new one.
+If yes, hand off to `/qa-report {KEY} --result=bug` (qa-analyze package; without it — to
+whatever ticket-creation flow your orchestrator has) with the investigation
+report(s) as structured context (root cause, timeline evidence, entity id, DB
+cross-check if one ran) — this agent never files tickets itself. If the investigation
+started from an existing Jira key, offer to comment on that ticket instead of
+creating a new one.
 
 ## Rules
 

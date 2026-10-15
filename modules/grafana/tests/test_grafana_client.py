@@ -215,3 +215,17 @@ class TestQueryLogsHits:
         )
         hits = GrafanaClient().query_logs_hits("900001", last="6h", step="1h")
         assert hits == [{"timestamps": ["2026-07-08T03:00:00Z"], "values": [47], "total": 47}]
+
+
+def test_named_account_never_falls_back_to_bare_keys(monkeypatch):
+    monkeypatch.delenv("GRAFANA__PROD__URL", raising=False)
+    monkeypatch.setenv("GRAFANA__PROD__TOKEN", "prod-token")
+    with pytest.raises(RuntimeError, match="GRAFANA__PROD__URL"):
+        GrafanaClient(account="prod")
+
+
+def test_named_account_uses_its_own_keys(monkeypatch):
+    monkeypatch.setenv("GRAFANA__PROD__URL", "https://grafana-prod.example.com")
+    monkeypatch.setenv("GRAFANA__PROD__TOKEN", "prod-token")
+    client = GrafanaClient(account="prod")
+    assert client.base_url == "https://grafana-prod.example.com"

@@ -48,6 +48,18 @@ def parse_duration(spec: str) -> timedelta:
 class GrafanaClient:
     def __init__(self, account: str = "default"):
         env = load_module_env("grafana", account)
+        if account and account != "default":
+            # A named account (e.g. --account=prod) never falls back to the bare
+            # GRAFANA_URL/GRAFANA_TOKEN — otherwise a half-configured account would
+            # silently pair one instance's URL with another's token and answer
+            # "no logs" from the wrong environment.
+            prefix = f"GRAFANA__{account.upper()}__"
+            missing = [k for k in ("URL", "TOKEN") if not env.get(prefix + k)]
+            if missing:
+                raise RuntimeError(
+                    f"Grafana account '{account}' is not fully configured: set "
+                    + ", ".join(prefix + k for k in missing) + " in config/grafana/.env"
+                )
         token = env.get("GRAFANA_TOKEN", "")
         url = env.get("GRAFANA_URL", "")
         if not token:
